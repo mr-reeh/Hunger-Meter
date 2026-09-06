@@ -1,5 +1,6 @@
 using System;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Dalamud.Plugin;
 using Dalamud.Plugin.Ipc;
 using Dalamud.Plugin.Services;
@@ -20,6 +21,22 @@ namespace HungerMeter;
 /// active profile's current waist scale once and treats every value
 /// this plugin computes as a MULTIPLIER on that baseline, not an
 /// absolute value.
+///
+/// CROSS-PLUGIN CONFLICT (found and fixed): SetTemporaryProfileOnCharacter
+/// does NOT merge with whatever temp profile is already active - it
+/// fully REPLACES the resolved bone set with only what's in the
+/// payload passed to it. A payload naming only the waist bone
+/// therefore blanks out every other bone another plugin (e.g. Milk
+/// Meter's chest bones) - or your own permanent profile - had set, the
+/// instant it's pushed. Milk Meter had this exact bug on its own
+/// chest-bone push and was fixed with an identical read-merge-write;
+/// SetWaistScale below does the same thing here: read whatever bones
+/// are part of the CURRENTLY ACTIVE profile right before pushing,
+/// overwrite/insert only the waist entry within that full set, and
+/// push the merged result - so this plugin's own push no longer
+/// erases another plugin's bones, and (as long as that other plugin
+/// does the same) its pushes stop erasing this plugin's waist bone
+/// too.
 ///
 /// UNVERIFIED: the exact bone name for the waist. Milk Meter's own
 /// chest implementation used "j_mune_l"/"j_mune_r" (confirmed against
@@ -134,9 +151,10 @@ public sealed class CustomizePlusIpc : IDisposable
 
     /// <summary>
     /// Push a temporary bone-scale override for the waist bone,
-    /// computed as (your baseline waist scale) * multiplier. Applied
-    /// on top of (not replacing) the player's existing Customize+
-    /// profile.
+    /// computed as (your baseline waist scale) * multiplier - merged
+    /// into whatever OTHER bones are part of the currently active
+    /// profile right now (see the class doc comment's CROSS-PLUGIN
+    /// CONFLICT note for why this can't be a bare waist-only payload).
     /// </summary>
     public void SetWaistScale(float multiplier)
     {
@@ -144,7 +162,7 @@ public sealed class CustomizePlusIpc : IDisposable
             return;
 
         var (bx, by, bz) = baselineWaistScale ?? (1f, 1f, 1f);
-        var profileJson = BuildTemplateJson(bx * multiplier, by * multiplier, bz * multiplier);
+        var profileJson = BuildMergedTemplateJson(bx * multiplier, by * multiplier, bz * multiplier);
 
         try
         {
@@ -235,30 +253,63 @@ public sealed class CustomizePlusIpc : IDisposable
     }
 
     /// <summary>
-    /// Builds a Customize+ template JSON fragment for the waist bone.
-    /// Translation/Rotation are zeroed since this plugin only ever
-    /// touches scale. Deliberately omits the top-level Version/
-    /// UniqueId/CreationDate/ModifiedDate/IsWriteProtected fields that
-    /// persisted template files on disk have - those are file-storage
-    /// metadata, not something the temporary-profile IPC call needs.
+    /// Reads whatever bones are part of the CURRENTLY ACTIVE profile -
+    /// which reflects any other plugin's own temp-profile edits (e.g.
+    /// Milk Meter's chest bones), not just this character's permanent
+    /// Customize+ profile - clones that bone set, replaces/inserts only
+    /// the waist bone entry with the given values, and returns the
+    /// full merged JSON payload to push. Falls back to a waist-only
+    /// payload if reading the active profile fails for any reason -
+    /// better to still apply our own change than silently do nothing,
+    /// even though that fallback reintroduces the blank-out risk for
+    /// that one push.
     /// </summary>
-    private static string BuildTemplateJson(float x, float y, float z)
+    private string BuildMergedTemplateJson(float x, float y, float z)
     {
-        var xStr = x.ToString("F4", System.Globalization.CultureInfo.InvariantCulture);
-        var yStr = y.ToString("F4", System.Globalization.CultureInfo.InvariantCulture);
-        var zStr = z.ToString("F4", System.Globalization.CultureInfo.InvariantCulture);
+        var bones = new JsonObject();
 
-        return $$"""
+        try
         {
-          "Bones": {
-            "{{WaistBoneName}}": {
-              "Translation": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
-              "Rotation": { "X": 0.0, "Y": 0.0, "Z": 0.0 },
-              "Scaling": { "X": {{xStr}}, "Y": {{yStr}}, "Z": {{zStr}} }
+            if (objectIndex is { } index)
+            {
+                var (err, profileId) = getActiveProfile.InvokeFunc(index);
+                if (err == 0 && profileId is not null)
+                {
+                    var (err2, json) = getProfileById.InvokeFunc(profileId.Value);
+                    if (err2 == 0 && !string.IsNullOrEmpty(json))
+                    {
+                        var parsed = JsonNode.Parse(json);
+                        // DeepClone() so the extracted "Bones" object is
+                        // fully detached from the parsed document - a
+                        // JsonNode can only ever belong to one parent,
+                        // and we're about to attach it to a brand new
+                        // root object below.
+                        if (parsed?["Bones"] is JsonObject existingBones)
+                            bones = (JsonObject)existingBones.DeepClone();
+                    }
+                }
             }
-          }
         }
-        """;
+        catch (Exception ex)
+        {
+            log.Warning(ex, "[HungerMeter] Failed to read active profile for merge - pushing a waist-only payload instead.");
+            bones = new JsonObject();
+        }
+
+        // Deliberately omits the top-level Version/UniqueId/
+        // CreationDate/ModifiedDate/IsWriteProtected fields that
+        // persisted template files on disk have - those are
+        // file-storage metadata, not something the temporary-profile
+        // IPC call needs.
+        bones[WaistBoneName] = new JsonObject
+        {
+            ["Translation"] = new JsonObject { ["X"] = 0.0, ["Y"] = 0.0, ["Z"] = 0.0 },
+            ["Rotation"] = new JsonObject { ["X"] = 0.0, ["Y"] = 0.0, ["Z"] = 0.0 },
+            ["Scaling"] = new JsonObject { ["X"] = (double)x, ["Y"] = (double)y, ["Z"] = (double)z },
+        };
+
+        var root = new JsonObject { ["Bones"] = bones };
+        return root.ToJsonString();
     }
 
     public void Dispose()

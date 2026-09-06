@@ -46,7 +46,14 @@ public sealed class SettingsWindow(
             configuration.ScalingPaused = scalingPaused;
             configuration.Save();
         }
-        ImGui.TextDisabled("Freezes decay and food-consumed increases in place, without hiding the HUD gauge.");
+        ImGui.TextDisabled("Freezes decay and food-consumed increases in place.");
+
+        var showDtrBarEntry = configuration.ShowDtrBarEntry;
+        if (ImGui.Checkbox("Show % on Server Info Bar", ref showDtrBarEntry))
+        {
+            configuration.ShowDtrBarEntry = showDtrBarEntry;
+            configuration.Save();
+        }
 
         ImGui.Separator();
         ImGui.Text("Waist Scaling Range");
@@ -101,7 +108,8 @@ public sealed class SettingsWindow(
 
         var current = getCurrentScale();
         var applied = getAppliedScale();
-        ImGui.Text($"Current scale: {current:F3}  (applied to Customize+: {applied:F3})");
+        var percent = WaistScale.ComputePercent(current, configuration.WaistMinScale, configuration.WaistBaselineScale, configuration.WaistMaxScale);
+        ImGui.Text($"Current scale: {current:F3} ({percent:F0}%)  (applied to Customize+: {applied:F3})");
 
         var (foodActive, remaining) = getFoodState();
         ImGui.Text(foodActive

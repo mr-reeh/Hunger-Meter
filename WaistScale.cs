@@ -68,4 +68,45 @@ public static class WaistScale
             return maxScale;
         return scale;
     }
+
+    /// <summary>
+    /// Maps the raw scale to a percentage for the server-info-bar
+    /// display, per spec: Minimum -> 0%, Baseline -> 100%, Maximum ->
+    /// 200%. Baseline is not necessarily the exact midpoint of
+    /// Minimum/Maximum (all three are independently configurable
+    /// sliders), so this is two separate linear segments rather than
+    /// one single formula across the whole range - Minimum..Baseline
+    /// maps onto 0%..100%, and Baseline..Maximum maps onto 100%..200%,
+    /// each with its own span.
+    ///
+    /// baselineScale is defensively clamped into [minScale, maxScale]
+    /// for purposes of this calculation only (not mutating the
+    /// caller's actual config) - if someone sets Baseline outside the
+    /// Min/Max range, the two segments would otherwise have a
+    /// zero-or-negative span and produce a nonsensical percentage
+    /// rather than just clamping to the nearest sensible end.
+    /// </summary>
+    public static float ComputePercent(float scale, float minScale, float baselineScale, float maxScale)
+    {
+        var clampedBaseline = Clamp(baselineScale, minScale, maxScale);
+
+        if (scale <= clampedBaseline)
+        {
+            var span = clampedBaseline - minScale;
+            if (span <= 0f)
+                return 100f;
+
+            var fraction = (scale - minScale) / span;
+            return fraction * 100f;
+        }
+        else
+        {
+            var span = maxScale - clampedBaseline;
+            if (span <= 0f)
+                return 100f;
+
+            var fraction = (scale - clampedBaseline) / span;
+            return 100f + fraction * 100f;
+        }
+    }
 }

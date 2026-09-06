@@ -11,7 +11,8 @@ namespace HungerMeter;
 /// signal (the Well Fed food buff), one Customize+ target (the waist
 /// bone), and one mechanic - decay over time, bumped up on every food
 /// consumed. No mode switching, no HUD sound/particle effects, no Job
-/// mode mini-game; just the accumulator and a small HUD gauge.
+/// mode mini-game, no ImGui HUD window; just the accumulator and a
+/// percentage on the server info bar (see DtrBarDisplay.cs).
 /// </summary>
 public sealed class Plugin : IDalamudPlugin
 {
@@ -22,6 +23,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] internal static IFramework Framework { get; private set; } = null!;
     [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
     [PluginService] internal static IPluginLog Log { get; private set; } = null!;
+    [PluginService] internal static IDtrBar DtrBar { get; private set; } = null!;
 
     private const string CommandName = "/hungermeter";
     private const string ShortCommandName = "/hunger";
@@ -30,7 +32,7 @@ public sealed class Plugin : IDalamudPlugin
     private readonly CustomizePlusIpc customizePlus;
     private readonly FoodBuffTracker foodTracker;
     private readonly SettingsWindow settingsWindow;
-    private readonly HudGaugeWindow hudGauge;
+    private readonly DtrBarDisplay dtrBarDisplay;
 
     // Only push an update to Customize+ when the applied scale actually
     // changes by a meaningful amount, and at most several times a
@@ -83,7 +85,7 @@ public sealed class Plugin : IDalamudPlugin
             () => lastPushedScale,
             () => foodTracker.GetFoodBuffState(),
             ResetToBaseline);
-        hudGauge = new HudGaugeWindow(Configuration, () => Configuration.CurrentWaistScale);
+        dtrBarDisplay = new DtrBarDisplay(DtrBar);
 
         CommandManager.AddHandler(CommandName, new CommandInfo(OnCommand)
         {
@@ -99,7 +101,6 @@ public sealed class Plugin : IDalamudPlugin
 
         Framework.Update += OnFrameworkUpdate;
         PluginInterface.UiBuilder.Draw += settingsWindow.Draw;
-        PluginInterface.UiBuilder.Draw += hudGauge.Draw;
         PluginInterface.UiBuilder.OpenConfigUi += OnOpenConfigUi;
     }
 
@@ -209,6 +210,13 @@ public sealed class Plugin : IDalamudPlugin
             lastPushedScale = targetScale;
             lastPushTime = now;
         }
+
+        var percent = WaistScale.ComputePercent(
+            Configuration.CurrentWaistScale,
+            Configuration.WaistMinScale,
+            Configuration.WaistBaselineScale,
+            Configuration.WaistMaxScale);
+        dtrBarDisplay.Update(Configuration.ShowDtrBarEntry, $"Hunger: {percent:F0}%");
     }
 
     private static double NowUnixSeconds() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
@@ -217,11 +225,11 @@ public sealed class Plugin : IDalamudPlugin
     {
         Framework.Update -= OnFrameworkUpdate;
         PluginInterface.UiBuilder.Draw -= settingsWindow.Draw;
-        PluginInterface.UiBuilder.Draw -= hudGauge.Draw;
         PluginInterface.UiBuilder.OpenConfigUi -= OnOpenConfigUi;
         CommandManager.RemoveHandler(CommandName);
         CommandManager.RemoveHandler(ShortCommandName);
         customizePlus.RevertWaistScale();
         customizePlus.Dispose();
+        dtrBarDisplay.Dispose();
     }
 }

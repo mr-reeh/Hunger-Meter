@@ -85,16 +85,8 @@ public sealed class Configuration : IPluginConfiguration
     /// </summary>
     public double? LastUpdateUnixSeconds { get; set; }
 
-    // --- HUD gauge ---
-
-    /// <summary>Whether the draggable chicken-leg HUD gauge is drawn at all.</summary>
-    public bool ShowHudGauge { get; set; } = true;
-
-    /// <summary>When true, the gauge window ignores drag input - toggle this once you've got it where you want it.</summary>
-    public bool HudLocked { get; set; } = false;
-
-    public float HudPositionX { get; set; } = 100f;
-    public float HudPositionY { get; set; } = 100f;
+    /// <summary>Whether the percentage entry is shown on the server info bar (DTR bar), next to the clock.</summary>
+    public bool ShowDtrBarEntry { get; set; } = true;
 
     private IDalamudPluginInterface? pluginInterface;
 

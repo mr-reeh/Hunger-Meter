@@ -19,10 +19,12 @@ from your **Well Fed** food buff.
 Your progress persists across game restarts: closing the game for a while and reopening
 it applies that elapsed time's decay retroactively, rather than resetting to Baseline.
 
-## The HUD gauge
+## The server info bar display
 
-A small draggable chicken-leg icon with a fill bar shows your current scale at a glance.
-Left-click it to pause/unpause scaling on the spot.
+Your current scale is shown as a percentage on the server info bar (the row next to the
+clock, shared with FPS counters/gil trackers/etc.) - `Minimum` maps to `0%`, `Baseline`
+maps to `100%`, and `Maximum` maps to `200%`. Toggle it off in the settings window if you'd
+rather not see it there.
 
 ## Getting started
 

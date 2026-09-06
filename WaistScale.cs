@@ -109,4 +109,44 @@ public static class WaistScale
             return 100f + fraction * 100f;
         }
     }
+
+    /// <summary>
+    /// Moves currentApplied toward target by at most
+    /// (maxDeltaPerSecond * deltaSeconds), in whichever direction
+    /// target lies - never overshoots past target in either
+    /// direction. Used so a food-consumed jump (an instant change to
+    /// the underlying target/CurrentWaistScale) shows up as a gradual
+    /// ramp on the value actually pushed to Customize+ and displayed
+    /// (AppliedWaistScale), instead of snapping immediately. Also
+    /// smooths decay's own already-gradual change, though decay's
+    /// natural per-second rate is normally well under
+    /// maxDeltaPerSecond already, so this only meaningfully affects
+    /// the food-consumed case in practice.
+    /// </summary>
+    public static float Ease(float currentApplied, float target, float maxDeltaPerSecond, float deltaSeconds)
+    {
+        var maxStep = maxDeltaPerSecond * deltaSeconds;
+        if (maxStep <= 0f)
+            return currentApplied;
+
+        var diff = target - currentApplied;
+        if (diff > maxStep)
+            return currentApplied + maxStep;
+        if (diff < -maxStep)
+            return currentApplied - maxStep;
+        return target;
+    }
+
+    /// <summary>
+    /// Reflects a scale value around baselineScale - used when
+    /// Configuration.InvertWaistScalingDirection is on, to compensate
+    /// for Customize+ visibly shrinking the waist for a LARGER
+    /// "Scaling" multiplier on at least one tested character (the
+    /// opposite of every other bone this project has scaled). Leaves
+    /// baselineScale itself unchanged (100% still looks like your
+    /// normal, un-adjusted size either way) while swapping which
+    /// physical multiplier gets sent for the Minimum vs. Maximum ends.
+    /// </summary>
+    public static float MirrorAroundBaseline(float scale, float baselineScale) =>
+        (2f * baselineScale) - scale;
 }

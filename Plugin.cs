@@ -67,13 +67,18 @@ public sealed class Plugin : IDalamudPlugin
         Configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         Configuration.Initialize(PluginInterface);
 
-        // Seed the accumulator on first-ever run (or from a
-        // pre-this-field config) from the configured baseline - see
-        // Configuration.CurrentWaistScale's own doc comment for why
+        // Seed both the target (CurrentWaistScale) and the eased,
+        // actually-displayed/pushed value (AppliedWaistScale) on
+        // first-ever run - see each field's own doc comment for why
         // NaN (not a hardcoded 1.0f) is the sentinel checked here.
         if (float.IsNaN(Configuration.CurrentWaistScale))
         {
             Configuration.CurrentWaistScale = Configuration.WaistBaselineScale;
+            Configuration.Save();
+        }
+        if (float.IsNaN(Configuration.AppliedWaistScale))
+        {
+            Configuration.AppliedWaistScale = Configuration.WaistBaselineScale;
             Configuration.Save();
         }
 
@@ -81,7 +86,7 @@ public sealed class Plugin : IDalamudPlugin
         foodTracker = new FoodBuffTracker(ObjectTable);
         settingsWindow = new SettingsWindow(
             Configuration,
-            () => Configuration.CurrentWaistScale,
+            () => Configuration.AppliedWaistScale,
             () => lastPushedScale,
             () => foodTracker.GetFoodBuffState(),
             ResetToBaseline);
@@ -108,7 +113,10 @@ public sealed class Plugin : IDalamudPlugin
 
     private void ResetToBaseline()
     {
+        // Instant, not eased - a reset is meant to snap back
+        // immediately, not ramp there like a normal food/decay change.
         Configuration.CurrentWaistScale = Configuration.WaistBaselineScale;
+        Configuration.AppliedWaistScale = Configuration.WaistBaselineScale;
         Configuration.LastUpdateUnixSeconds = NowUnixSeconds();
         Configuration.Save();
     }
@@ -119,8 +127,9 @@ public sealed class Plugin : IDalamudPlugin
 
         if (args.Equals("status", StringComparison.OrdinalIgnoreCase))
         {
-            Log.Information($"[HungerMeter] Current scale: {Configuration.CurrentWaistScale:F3} " +
-                $"(applied: {lastPushedScale:F3})");
+            Log.Information($"[HungerMeter] Target: {Configuration.CurrentWaistScale:F3}  " +
+                $"Applied: {Configuration.AppliedWaistScale:F3}  " +
+                $"Sent to Customize+: {lastPushedScale:F3}");
             return;
         }
 
@@ -198,21 +207,44 @@ public sealed class Plugin : IDalamudPlugin
             // value.
             Configuration.CurrentWaistScale = WaistScale.Clamp(
                 Configuration.CurrentWaistScale, Configuration.WaistMinScale, Configuration.WaistMaxScale);
+
+            // Ease the visible/applied value toward that target
+            // rather than snapping to it - this is what actually
+            // makes a food-consumed jump feel gradual instead of
+            // instantaneous. Uses this frame's own small delta (NOT
+            // elapsedSeconds above, which can be a large catch-up
+            // value after reopening the game) so the ramp rate feels
+            // consistent regardless of how long the game was closed.
+            var frameDeltaSeconds = (float)framework.UpdateDelta.TotalSeconds;
+            Configuration.AppliedWaistScale = WaistScale.Ease(
+                Configuration.AppliedWaistScale,
+                Configuration.CurrentWaistScale,
+                Configuration.WaistChangeRatePerSecond,
+                frameDeltaSeconds);
+
+            Configuration.AppliedWaistScale = WaistScale.Clamp(
+                Configuration.AppliedWaistScale, Configuration.WaistMinScale, Configuration.WaistMaxScale);
         }
 
-        var targetScale = Configuration.CurrentWaistScale;
-        var delta = MathF.Abs(targetScale - lastPushedScale);
+        // The physical multiplier sent to Customize+ - mirrored around
+        // Baseline first if InvertWaistScalingDirection is on (see its
+        // own doc comment in Configuration.cs for why this exists).
+        var physicalScale = Configuration.InvertWaistScalingDirection
+            ? WaistScale.MirrorAroundBaseline(Configuration.AppliedWaistScale, Configuration.WaistBaselineScale)
+            : Configuration.AppliedWaistScale;
+
+        var delta = MathF.Abs(physicalScale - lastPushedScale);
         var dueForPush = now - lastPushTime >= MinSecondsBetweenPushes;
 
         if ((delta >= MinScaleDelta || lastPushedScale < 0f) && (dueForPush || lastPushedScale < 0f))
         {
-            customizePlus.SetWaistScale(targetScale);
-            lastPushedScale = targetScale;
+            customizePlus.SetWaistScale(physicalScale);
+            lastPushedScale = physicalScale;
             lastPushTime = now;
         }
 
         var percent = WaistScale.ComputePercent(
-            Configuration.CurrentWaistScale,
+            Configuration.AppliedWaistScale,
             Configuration.WaistMinScale,
             Configuration.WaistBaselineScale,
             Configuration.WaistMaxScale);

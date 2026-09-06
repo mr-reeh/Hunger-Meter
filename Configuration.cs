@@ -62,6 +62,35 @@ public sealed class Configuration : IPluginConfiguration
     /// </summary>
     public float WaistReductionPerHour { get; set; } = 0.2f;
 
+    /// <summary>
+    /// Caps how fast the visibly-applied scale (AppliedWaistScale) can
+    /// move toward the underlying target value (CurrentWaistScale),
+    /// in scale units per real second - e.g. the default 0.02 means a
+    /// full +0.10 food-consumed jump takes about 5 real seconds to
+    /// visibly finish rather than snapping instantly. Applies equally
+    /// to decay's own (already gradual) change, though decay's natural
+    /// per-second rate is normally far below this cap already, so in
+    /// practice this setting is really only felt on food-consumed
+    /// jumps. See WaistScale.Ease and Plugin.cs's OnFrameworkUpdate.
+    /// </summary>
+    public float WaistChangeRatePerSecond { get; set; } = 0.02f;
+
+    /// <summary>
+    /// Whether the multiplier actually sent to Customize+ is mirrored
+    /// around Baseline (2*Baseline - target) before being applied.
+    /// Added because on at least one tested character/skeleton, a
+    /// larger Customize+ "Scaling" value on the waist bone visibly
+    /// SHRANK the waist rather than growing it - the opposite of every
+    /// other bone this project has scaled (chest, in Milk Meter, grows
+    /// as expected). Rather than assume that's universal (it could be
+    /// specific to a body type, mod, or skeleton setup), this stays a
+    /// toggle instead of a hardcoded flip - default true because it's
+    /// confirmed needed on at least one real setup, but if scaling
+    /// direction is ever still backwards (or becomes backwards after
+    /// changing body mods/race), flip this off.
+    /// </summary>
+    public bool InvertWaistScalingDirection { get; set; } = true;
+
     // --- Persisted accumulator state ---
 
     /// <summary>
@@ -74,6 +103,16 @@ public sealed class Configuration : IPluginConfiguration
     /// not a hardcoded value that could silently disagree with it.
     /// </summary>
     public float CurrentWaistScale { get; set; } = float.NaN;
+
+    /// <summary>
+    /// The scale value actually pushed to Customize+ (after mirroring,
+    /// if InvertWaistScalingDirection is on) and used for the DTR/
+    /// settings-window percent display - eases toward CurrentWaistScale
+    /// over time (see WaistScale.Ease) rather than jumping instantly
+    /// the way CurrentWaistScale itself does on a food-consumed event.
+    /// Same NaN-sentinel/seeding reasoning as CurrentWaistScale above.
+    /// </summary>
+    public float AppliedWaistScale { get; set; } = float.NaN;
 
     /// <summary>
     /// Unix seconds (UtcNow) as of the last time decay was applied.

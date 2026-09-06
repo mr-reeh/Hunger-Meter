@@ -8,8 +8,7 @@ namespace HungerMeter;
 /// Configuration + live monitoring window. Toggled via /hungermeter
 /// config, or the gear icon in the plugin installer. Same ImGui
 /// binding and Begin/End/SliderFloat pattern as Milk Meter's own
-/// SettingsWindow.cs, stripped down to just this plugin's five
-/// sliders plus a status readout.
+/// SettingsWindow.cs.
 /// </summary>
 public sealed class SettingsWindow(
     Configuration configuration,
@@ -65,6 +64,7 @@ public sealed class SettingsWindow(
                 minScale = configuration.WaistMaxScale;
             configuration.WaistMinScale = minScale;
             configuration.CurrentWaistScale = WaistScale.Clamp(configuration.CurrentWaistScale, configuration.WaistMinScale, configuration.WaistMaxScale);
+            configuration.AppliedWaistScale = WaistScale.Clamp(configuration.AppliedWaistScale, configuration.WaistMinScale, configuration.WaistMaxScale);
             configuration.Save();
         }
 
@@ -83,8 +83,17 @@ public sealed class SettingsWindow(
                 maxScale = configuration.WaistMinScale;
             configuration.WaistMaxScale = maxScale;
             configuration.CurrentWaistScale = WaistScale.Clamp(configuration.CurrentWaistScale, configuration.WaistMinScale, configuration.WaistMaxScale);
+            configuration.AppliedWaistScale = WaistScale.Clamp(configuration.AppliedWaistScale, configuration.WaistMinScale, configuration.WaistMaxScale);
             configuration.Save();
         }
+
+        var invertDirection = configuration.InvertWaistScalingDirection;
+        if (ImGui.Checkbox("Invert Waist Scaling Direction", ref invertDirection))
+        {
+            configuration.InvertWaistScalingDirection = invertDirection;
+            configuration.Save();
+        }
+        ImGui.TextDisabled("On if a larger scale value visibly SHRINKS your waist instead of growing it - flip this if scaling ever looks backwards.");
 
         ImGui.Separator();
         ImGui.Text("Rates");
@@ -103,13 +112,22 @@ public sealed class SettingsWindow(
             configuration.Save();
         }
 
+        var changeRate = configuration.WaistChangeRatePerSecond;
+        if (ImGui.SliderFloat("Increase Ramp Rate (Scale/Second)", ref changeRate, 0.001f, 0.50f, "%.3f"))
+        {
+            configuration.WaistChangeRatePerSecond = changeRate;
+            configuration.Save();
+        }
+        ImGui.TextDisabled("How fast a food-consumed jump ramps in, instead of applying instantly - lower is slower.");
+
         ImGui.Separator();
         ImGui.Text("Status");
 
-        var current = getCurrentScale();
-        var applied = getAppliedScale();
-        var percent = WaistScale.ComputePercent(current, configuration.WaistMinScale, configuration.WaistBaselineScale, configuration.WaistMaxScale);
-        ImGui.Text($"Current scale: {current:F3} ({percent:F0}%)  (applied to Customize+: {applied:F3})");
+        var displayed = getCurrentScale();
+        var sentToCustomizePlus = getAppliedScale();
+        var percent = WaistScale.ComputePercent(displayed, configuration.WaistMinScale, configuration.WaistBaselineScale, configuration.WaistMaxScale);
+        ImGui.Text($"Displayed scale: {displayed:F3} ({percent:F0}%)");
+        ImGui.Text($"Sent to Customize+: {sentToCustomizePlus:F3}");
 
         var (foodActive, remaining) = getFoodState();
         ImGui.Text(foodActive

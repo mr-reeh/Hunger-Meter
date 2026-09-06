@@ -78,18 +78,22 @@ public sealed class Configuration : IPluginConfiguration
     /// <summary>
     /// Whether the multiplier actually sent to Customize+ is mirrored
     /// around Baseline (2*Baseline - target) before being applied.
-    /// Added because on at least one tested character/skeleton, a
-    /// larger Customize+ "Scaling" value on the waist bone visibly
-    /// SHRANK the waist rather than growing it - the opposite of every
-    /// other bone this project has scaled (chest, in Milk Meter, grows
-    /// as expected). Rather than assume that's universal (it could be
-    /// specific to a body type, mod, or skeleton setup), this stays a
-    /// toggle instead of a hardcoded flip - default true because it's
-    /// confirmed needed on at least one real setup, but if scaling
-    /// direction is ever still backwards (or becomes backwards after
-    /// changing body mods/race), flip this off.
+    ///
+    /// HISTORY: this was originally added (and defaulted on) after an
+    /// apparent inversion was observed on a real character - a larger
+    /// Customize+ "Scaling" value seemed to visibly SHRINK the waist.
+    /// That observation turned out to be a red herring: it was made
+    /// while a separate cross-plugin bug was still active (see
+    /// CustomizePlusIpc.cs's own CROSS-PLUGIN CONFLICT note) that was
+    /// causing this plugin's own pushes to be intermittently stomped
+    /// by another plugin's, corrupting what was actually being tested.
+    /// Once that was fixed, a clean test showed normal, un-inverted
+    /// behavior (a sub-Baseline value correctly shrinks the waist) -
+    /// so this now defaults OFF. Left as a toggle rather than removed
+    /// entirely, in case a genuine inversion ever does show up on a
+    /// different body type/mod/skeleton setup.
     /// </summary>
-    public bool InvertWaistScalingDirection { get; set; } = true;
+    public bool InvertWaistScalingDirection { get; set; } = false;
 
     // --- Persisted accumulator state ---
 

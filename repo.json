@@ -1,0 +1,20 @@
+[
+  {
+    "Author": "MrReeh",
+    "Name": "Hunger Meter",
+    "InternalName": "HungerMeter",
+    "AssemblyVersion": "1.0.0.0",
+    "Description": "Drives Customize+ waist scale from your Well Fed food buff. Starts at a configurable Baseline, decays toward a configurable Minimum over time, and jumps up toward a configurable Maximum every time you eat. Displayed as a small chicken-leg HUD gauge. Fully configurable in-game via a settings window. Requires Customize+. Local only: nobody else sees it.",
+    "Punchline": "Turns eating food into a waist-scaling meter.",
+    "ApplicableVersion": "any",
+    "DalamudApiLevel": 15,
+    "Tags": [ "customize+", "scaling", "hud" ],
+    "CategoryTags": [ "other" ],
+    "RepoUrl": "https://github.com/mr-reeh/Hunger-Meter",
+    "IconUrl": "",
+    "AcceptsFeedback": true,
+    "DownloadLinkInstall": "https://github.com/mr-reeh/Hunger-Meter/releases/latest/download/latest.zip",
+    "DownloadLinkUpdate": "https://github.com/mr-reeh/Hunger-Meter/releases/latest/download/latest.zip",
+    "DownloadLinkTesting": "https://github.com/mr-reeh/Hunger-Meter/releases/latest/download/latest.zip"
+  }
+]

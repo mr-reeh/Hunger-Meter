@@ -216,7 +216,7 @@ public sealed class Plugin : IDalamudPlugin
             Configuration.WaistMinScale,
             Configuration.WaistBaselineScale,
             Configuration.WaistMaxScale);
-        dtrBarDisplay.Update(Configuration.ShowDtrBarEntry, $"Hunger: {percent:F0}%");
+        dtrBarDisplay.Update(Configuration.ShowDtrBarEntry, $"Food: {percent:F0}%");
     }
 
     private static double NowUnixSeconds() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
